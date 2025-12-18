@@ -1,0 +1,3 @@
+const getUserInfo = (req,res)=>{
+    
+}
