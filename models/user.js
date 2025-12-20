@@ -19,7 +19,7 @@ const userSchema = mongoose.Schema({
     },
     userType: {
         type: "String",
-        enum: ['Active', 'Inactive']
+        enum: ['active', 'inactive']
     },
     username: {
         type: String,
@@ -59,7 +59,7 @@ const userSchema = mongoose.Schema({
       }],
     purchasedItems: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Item"
+        ref: "PurchasedItem"
       }],
 },{
     timestamp: true,
@@ -67,5 +67,6 @@ const userSchema = mongoose.Schema({
 
 
 const User = new mongoose.model('User', userSchema);
+
 
 export {User};

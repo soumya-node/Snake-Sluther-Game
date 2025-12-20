@@ -3,7 +3,14 @@ import { User } from "../models/user.js";
 import { configDotenv } from "dotenv";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { adminAuthorization } from "../utils/adminAuthorization.js";
+import { GameHistory } from "../models/gameHistory.js";
+import { PurchasedItem } from "../models/purchaseitem.js";
+import { Transaction } from "../models/transaction.js";
+import client from "../redisconnection.js";
+import generateOTP from "../utils/generateOTP.js";
+import sendEmailOtp from "../nodemailersetting.js";
+// import { adminAuthorization } from "../utils/adminAuthorization.js";
+
 
 configDotenv();
 
@@ -12,24 +19,24 @@ const salt = process.env.SALT;
 
 const userroute = express.Router({mergeParams: true});
 
-userroute.get('/userType/:type', /*adminAuthorization,*/ async (req,res)=>{
-    const userType = req.params.userType; // this can be All | Active | Inactive
+userroute.get('/usertype/:type', /*adminAuthorization,*/ async (req,res)=>{
+    const userType = req.params.type; // this can be all | active | inactive
     let users = null;
-    if(userType == "All"){
+    if(userType == "all"){
         users = await User.find({}).select('_id username accountType loginDetail coinBalance');
-    }else if(['Active','Inactive'].includes(userType)){
+    }else if(['active','inactive'].includes(userType)){
         users = await User.find({userType: userType}).select('_id username accountType loginDetail coinBalance');
     }else{
-        res.status(400).json({message: "This specific type of users are not here!"});
+        return res.status(400).json({message: "This specific type of users are not here!"});
     }
-    res.status(200).json(users);
+    return res.status(200).json(users);
 });
 
-userroute.patch('/block/:status', /*adminAuthorization,*/ async (req,res)=>{
-    const status = req.params.status; // this can be either Block or Unblock;
-    const userId = req.body._id;
+userroute.patch('/:id/block/:status', /*adminAuthorization,*/ async (req,res)=>{
+    const status = req.params.status == 'true' ? true : false // this can be either true or false;
+    const userId = req.params.id;
     let result = null;
-    if(['Block', 'Unblock'].includes(status)){
+    if(['true', 'false'].includes(req.params.status)){
         result = await User.updateOne({_id : userId}, {blocked: status});
         res.status(200).json(result);
     }else{
@@ -40,24 +47,74 @@ userroute.patch('/block/:status', /*adminAuthorization,*/ async (req,res)=>{
 userroute.get('/oneuser/:id/:infotype/:filtertype', /*adminAuthorization,*/ async (req,res)=>{
     const userId = req.params.id;
     const infotype = req.params.infotype ? req.params.infotype : 'gameHistory'; // this can be : gameHistory | transactions | purchasedItems ;
-    const filtertype = req.params.filtertype ? req.params.filtertype : 'All' ;
+    const filtertype = req.params.filtertype ? req.params.filtertype : 'all' ;
     let result = null;
     if(!['gameHistory', 'transactions', 'purchasedItems'].includes(infotype)){
         res.status(400).json({message: 'Wrong input data'});
     }
     let infoAndFilterRelation = {
-        gameHistory: "gamemode",
-
+        gameHistory: "gameMode",
+        transactions: "item",
+        purchasedItems: "itemType"
     }
-    result = await User.find({_id: userId}).select('_id age username mobilenumber email country lastActive createdAt '+ infotype).populate({path: infotype, match: {}});
-
+    let optionObject = {
+        gameMode: ['all', 'infinite', 'time'],
+        item: ['all', 'coin', 'powerup'],
+        itemType: [ 'all', 'snake', 'background', 'powerup']
+    }
+    if( ! optionObject[infoAndFilterRelation[infotype]].includes(filtertype) ){
+        res.status(400).json({
+            message: 'the filter option is not valid!',
+        });
+    }
+    if(filtertype == 'all'){
+        result = await User.find({_id: userId}).select('_id age username mobilenumber email country lastActive createdAt '+ infotype).populate(infotype);
+        res.status(200).send(result);
+    }else{
+        result = await User.find({_id: userId}).select('_id age username mobilenumber email country lastActive createdAt '+ infotype).populate({path: infotype, match: {[infoAndFilterRelation[infotype]]: filtertype}});
+        res.status(200).send(result);
+    }
 });
 
 
-userroute.post('/signup' , async (req,res)=>{
-    let {username, accountType, loginDetail, age, mobilenumber, email, country, password, phoneOtp, emailOtp} = req.body;
+userroute.post('/emailOtp', async (req,res)=>{
+    let userEmail = req.body.email;
+    let emailOtp = generateOTP();
 
-    // redis otp cheking implimentation ----------------------------------------------------------------------------------------------
+    sendEmailOtp(userEmail, emailOtp);
+    
+    await client.set(`email:otp:${userEmail}`, emailOtp, {EX: 600});
+
+    res.status(200).json({
+        message: "The otp has been send to your email",
+    });
+});
+
+
+userroute.post('/phoneOtp', async (req,res)=>{
+    let userPhone = req.body.phone;
+    let phoneOtp = generateOTP();
+    await client.set(`email:otp:${userPhone}`, phoneOtp, {EX: 300});
+
+    // send message here
+
+    res.status(200).json({
+        message: "The otp has been send to your email",
+    });
+});
+
+userroute.post('/signup' , async (req,res)=>{
+    let {username, accountType, loginDetail, age, mobilenumber, email, country, password, phoneOtp/*, emailOtp*/} = req.body;
+
+    let storedOtp = await client.get(`email:otp:${email}`);
+    let hashedOtp = await bcrypt.hash(emailOtp, parseInt(process.env.SALT));
+
+    if(storedOtp != hashedOtp){
+        client.del(`email:otp:${email}`);
+        return res.status(400).json({
+            message: "Invalid mail OTP, try to resend Otp",
+        });
+    }
     
     let existingUser = await User.findOne({$or : [{email: email}, {mobilenumber: mobilenumber}]});
     if(existingUser){
@@ -87,7 +144,7 @@ userroute.post('/signup' , async (req,res)=>{
         res.status(500).json({
             message: "Somthing wrong, try later",
         });
-    })
+    });
 });
 
 
@@ -122,3 +179,6 @@ userroute.post('/signin', async (req,res)=>{
         });
     }
 });
+
+
+export {userroute};

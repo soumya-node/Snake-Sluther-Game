@@ -22,7 +22,7 @@ const transactionSchema = mongoose.Schema({
         required: true,
     },
     Status: {
-        type: Number,
+        type: String,
         required: true,
         enum: ['Complete', 'Pending', 'Failed']
     },
@@ -31,5 +31,6 @@ const transactionSchema = mongoose.Schema({
 });
 
 const Transaction = new mongoose.model('Transaction', transactionSchema);
+
 
 export {Transaction} 

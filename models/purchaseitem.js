@@ -29,4 +29,5 @@ const purchasedItems = mongoose.Schema({
 
 const PurchasedItem = new mongoose.model('PurchasedItem', purchasedItems);
 
+
 export {PurchasedItem};

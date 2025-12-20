@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const gameHistorySchema = mongoose.Schema({
     gameMode: {
         type: String,
-        enum: ['Time', 'Infinite']
+        enum: ['time', 'infinite']
     },
     playTime: {
         type: Number,
@@ -23,5 +23,6 @@ const gameHistorySchema = mongoose.Schema({
 
 
 const GameHistory = new mongoose.model("GameHistory", gameHistorySchema);
+
 
 export {GameHistory};
