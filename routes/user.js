@@ -105,19 +105,25 @@ userroute.post('/signup' , async (req,res)=>{
     let {username, accountType, loginDetail, age, mobilenumber, email, country, password, /*phoneOtp,*/ emailOtp} = req.body;
 
     let storedOtp = await client.get(`email:otp:${email}`);
-    let hashedOtp = await bcrypt.hash(emailOtp, parseInt(salt));
+    if(!storedOtp){
+        return res.status(400).json({
+            message: "please resend the otp, and try agian!",
+        });
+    }
 
-    if(storedOtp != hashedOtp){
+    let hashedOtp = await bcrypt.compare(emailOtp.toString(), storedOtp);
+    if(!hashedOtp){
         client.del(`email:otp:${email}`);
         return res.status(400).json({
             message: "Invalid mail OTP, try to resend Otp",
         });
     }
+
     let existingUser = await User.findOne({$or : [{email: email}, {mobilenumber: mobilenumber}]});
     if(existingUser){
         res.status(400).json({message: "Email or Mobile number already in use"});
     }
-    let hashedpassword = bcrypt.hash(password, salt);
+    let hashedpassword = await bcrypt.hash(password, parseInt(salt));
     let newUser = User({
         username,
         accountType,
@@ -126,8 +132,9 @@ userroute.post('/signup' , async (req,res)=>{
         mobilenumber,
         email,
         country,
-        hashedpassword,
+        password: hashedpassword,
     });
+
     await newUser.save().then((result)=>{
         let token = jwt.sign({
             _id: result._id,
@@ -142,10 +149,12 @@ userroute.post('/signup' , async (req,res)=>{
             message: "Somthing wrong, try later",
         });
     });
+
 });
 
 
 userroute.post('/signin', async (req,res)=>{
+    console.log(req.body);
     let {email, password} = req.body;
     let existingUser = await User.findOne({email: email});
     if(! existingUser){
@@ -171,7 +180,7 @@ userroute.post('/signin', async (req,res)=>{
     }catch(error){
         console.log('some error in password matching', error)
         res.status(400).json({
-            message: "Sorry budy there is some issue right now, please comeback later!",
+            message: "Sorry buddy there is some issue right now, please comeback later!",
             error: error
         });
     }
