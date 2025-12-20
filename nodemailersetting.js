@@ -1,8 +1,5 @@
 import nodemailer from "nodemailer";
 import { configDotenv } from "dotenv";
-import client from "./redisconnection.js";
-import generateOTP from "./utils/generateOTP.js";
-import bcrypt from "bcrypt";
 
 configDotenv();
 

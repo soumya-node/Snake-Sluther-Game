@@ -80,11 +80,9 @@ userroute.get('/oneuser/:id/:infotype/:filtertype', /*adminAuthorization,*/ asyn
 userroute.post('/emailOtp', async (req,res)=>{
     let userEmail = req.body.email;
     let emailOtp = generateOTP();
-
     sendEmailOtp(userEmail, emailOtp);
-    
-    await client.set(`email:otp:${userEmail}`, emailOtp, {EX: 600});
-
+    let hashedOtp = await bcrypt.hash(emailOtp.toString(), parseInt(salt));
+    await client.set(`email:otp:${userEmail}`, hashedOtp, {EX: 600});
     res.status(200).json({
         message: "The otp has been send to your email",
     });
@@ -94,7 +92,7 @@ userroute.post('/emailOtp', async (req,res)=>{
 userroute.post('/phoneOtp', async (req,res)=>{
     let userPhone = req.body.phone;
     let phoneOtp = generateOTP();
-    await client.set(`email:otp:${userPhone}`, phoneOtp, {EX: 300});
+    await client.set(`email:otp:${userPhone}`, phoneOtp, {EX: 600});
 
     // send message here
 
@@ -104,10 +102,10 @@ userroute.post('/phoneOtp', async (req,res)=>{
 });
 
 userroute.post('/signup' , async (req,res)=>{
-    let {username, accountType, loginDetail, age, mobilenumber, email, country, password, phoneOtp/*, emailOtp*/} = req.body;
+    let {username, accountType, loginDetail, age, mobilenumber, email, country, password, /*phoneOtp,*/ emailOtp} = req.body;
 
     let storedOtp = await client.get(`email:otp:${email}`);
-    let hashedOtp = await bcrypt.hash(emailOtp, parseInt(process.env.SALT));
+    let hashedOtp = await bcrypt.hash(emailOtp, parseInt(salt));
 
     if(storedOtp != hashedOtp){
         client.del(`email:otp:${email}`);
@@ -115,7 +113,6 @@ userroute.post('/signup' , async (req,res)=>{
             message: "Invalid mail OTP, try to resend Otp",
         });
     }
-    
     let existingUser = await User.findOne({$or : [{email: email}, {mobilenumber: mobilenumber}]});
     if(existingUser){
         res.status(400).json({message: "Email or Mobile number already in use"});
