@@ -20,12 +20,23 @@ const salt = process.env.SALT;
 const userroute = express.Router({mergeParams: true});
 
 userroute.get('/usertype/:type', /*adminAuthorization,*/ async (req,res)=>{
+
+    // for pagination 
+
+    let {page, limit} = req.query;
+    if(!page){page = 1}
+    if(!limit){limit = 10}
+    let skip = limit * (page - 1);
+
+    // --------------------
+
+
     const userType = req.params.type; // this can be all | active | inactive
     let users = null;
     if(userType == "all"){
-        users = await User.find({}).select('_id username accountType loginDetail coinBalance');
+        users = await User.find({}).skip(skip).limit(limit).select('_id username accountType loginDetail coinBalance');
     }else if(['active','inactive'].includes(userType)){
-        users = await User.find({userType: userType}).select('_id username accountType loginDetail coinBalance');
+        users = await User.find({userType: userType}).skip(skip).limit(limit).select('_id username accountType loginDetail coinBalance');
     }else{
         return res.status(400).json({message: "This specific type of users are not here!"});
     }
@@ -48,6 +59,16 @@ userroute.get('/oneuser/:id/:infotype/:filtertype', /*adminAuthorization,*/ asyn
     const userId = req.params.id;
     const infotype = req.params.infotype ? req.params.infotype : 'gameHistory'; // this can be : gameHistory | transactions | purchasedItems ;
     const filtertype = req.params.filtertype ? req.params.filtertype : 'all' ;
+
+     // for pagination 
+
+    let {page, limit} = req.query;
+    if(!page){page = 1}
+    if(!limit){limit = 10}
+    let skip = limit * (page - 1);
+
+    // --------------------
+
     let result = null;
     if(!['gameHistory', 'transactions', 'purchasedItems'].includes(infotype)){
         res.status(400).json({message: 'Wrong input data'});
@@ -68,10 +89,10 @@ userroute.get('/oneuser/:id/:infotype/:filtertype', /*adminAuthorization,*/ asyn
         });
     }
     if(filtertype == 'all'){
-        result = await User.find({_id: userId}).select('_id age username mobilenumber email country lastActive createdAt '+ infotype).populate(infotype);
+        result = await User.find({_id: userId}).skip(skip).limit(limit).select('_id age username mobilenumber email country lastActive createdAt '+ infotype).populate(infotype);
         res.status(200).send(result);
     }else{
-        result = await User.find({_id: userId}).select('_id age username mobilenumber email country lastActive createdAt '+ infotype).populate({path: infotype, match: {[infoAndFilterRelation[infotype]]: filtertype}});
+        result = await User.find({_id: userId}).skip(skip).limit(limit).select('_id age username mobilenumber email country lastActive createdAt '+ infotype).populate({path: infotype, match: {[infoAndFilterRelation[infotype]]: filtertype}});
         res.status(200).send(result);
     }
 });
